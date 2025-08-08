@@ -1,0 +1,203 @@
+---
+title: "Final Project Report"
+author: "Janvi Ahuja, Ahsan Sultan"
+date: "04/25/2024"
+output: pdf_document
+geometry: left=0.5in,right=0.5in,top=0.5in,bottom=0.5in
+urlcolor: blue
+---
+
+```{r setupFiles, include = FALSE}
+# This template file is based off of a template created by Alex Hayes
+# https://github.com/alexpghayes/rmarkdown_homework_template
+
+# Setting Document Options
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center"
+)
+```
+
+Research Question: How do weather conditions affect the pricing and availability of cab rides? 
+
+As a frequent user of cabs, I have noticed that everytime the weather is not great the pricing for Ubers and Lyfts increases and the availability decreases. This makes it harder to commute to different places for people who do not have a car and rely on cab rides to go place to place.This phenomena is something both of us wanted to explore and analyze to gain further insight which is the reason behind choosing this particular topic for our project.
+
+```{r}
+#Data Access
+#The source is Kaggle. The link to the data set is https://www.kaggle.com/code/annieiachien/uber-and-lyft-price-prediction/input
+```
+```{r}
+# Load necessary library
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+
+# Read the original CSV file
+cab_rides <- read.csv("/Users/janviahuja/Desktop/STAT 184_Final Project /cab_rides.csv")
+weather <- read.csv("/Users/janviahuja/Desktop/STAT 184_Final Project /weather.csv")
+
+# Select only the necessary columns
+cleaned_cab_rides <- cab_rides %>%
+  select(time_stamp, price, surge_multiplier)
+
+cleaned_weather <- weather %>%
+  select(-location)
+
+
+# Write the cleaned data frame to a new CSV file
+write.csv(cleaned_cab_rides, "/Users/janviahuja/Desktop/STAT 184_Final Project /cleaned_cab_rides.csv", row.names = FALSE)
+write.csv(cleaned_weather, "/Users/janviahuja/Desktop/STAT 184_Final Project /cleaned_weather.csv", row.names = FALSE)
+
+cab_rides_data <- na.omit(cleaned_cab_rides)
+weather_data <- na.omit(cleaned_weather)
+```
+
+
+
+```{r}
+# looking over the data to see if it loaded correctly
+head(cab_rides_data)
+```
+```{r}
+# checking the data type for each column
+summary(cab_rides_data)
+```
+
+```{r}
+head(weather_data)
+```
+
+
+```{r}
+# inspecting data in a different way
+glimpse(cab_rides_data)
+```
+
+```{r}
+#DATA WRANGLING
+
+#We have used general data wrangling using data verbs such as mutate, and group_by. We have used a join as we have multiple dataframes. We used reduction/transformation functions such as mean. We have also used user defined functions.
+
+# Converts 'time_stamp' column to POSIXct format and rounds it to the nearest hour
+weather_data <- weather_data %>%
+  mutate(time_stamp = as.POSIXct(time_stamp, origin = "1970-01-01"),
+         time_rounded = floor_date(time_stamp, unit = "hour"))
+
+# Converts 'time_stamp' column to POSIXct format and rounds it to the nearest hour
+cab_rides_data <- cab_rides_data %>%
+  mutate(time_stamp = as.POSIXct(time_stamp / 1000, origin = "1970-01-01"), # divide by 1000 to convert milliseconds into seconds
+         time_rounded = floor_date(time_stamp, unit = "hour"))
+
+#function used to get average measurements/hr 
+weather_hourly_fn <- function(data) {
+  data %>%
+    group_by(time_rounded) %>%
+    summarize(
+      avg_temp = mean(temp, na.rm = TRUE), 
+      avg_rain = mean(rain, na.rm = TRUE),
+      avg_humidity = mean(humidity, na.rm = TRUE),
+      avg_clouds = mean(clouds, na.rm = TRUE),
+      avg_wind = mean(wind, na.rm = TRUE),
+      avg_pressure = mean(pressure, na.rm = TRUE))
+}
+
+# to call the function above
+weather_hourly <- weather_hourly_fn(weather_data)
+
+# summarize cab rides data to get average price per hour
+cab_rides_hourly <- cab_rides_data %>%
+  group_by(time_rounded) %>%
+  summarize(ride_count=n(),
+            avg_price = mean(price, na.rm = TRUE))
+
+# combines the two datasets on the rounded hour
+combined_data <- left_join(weather_hourly, cab_rides_hourly, by = "time_rounded")
+combined_data <- na.omit(combined_data)
+```
+
+
+```{r}
+combined_data <- combined_data %>%
+  mutate(avg_humidity = round(avg_humidity, 2),
+         avg_temp=round(avg_temp, 2),
+         avg_rain=round(avg_rain, 2),
+         avg_humidity=round(avg_humidity, 2),
+         avg_clouds=round(avg_clouds, 2),
+         avg_wind=round(avg_wind, 2),
+         avg_pressure=round(avg_pressure, 2),
+         avg_price=round(avg_price, 2),
+         )
+```
+```{r}
+combined_data
+```
+
+
+```{r}
+ggplot(combined_data, aes(x = avg_temp, y = ride_count)) +
+  geom_point(aes(color = avg_rain), size = 3, alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") + # Optional: Include a regression line
+  scale_color_gradient(low = "lightblue", high = "darkblue", name = "Average Rainfall (mm)") +
+  labs(
+    x = "Average Temperature (°C)", 
+    y = "Ride Count (Availability)",
+    title = "Cab Ride Availability vs. Temperature and Rainfall",
+    subtitle = "Color intensity represents average rainfall"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+There isn't any significant correlation between average temperature and availability of cabs because the regression line is very flat and doesn't show any trend.The color intensity representing average rainfall doesn't seem to show a clear pattern concerning ride count. The distribution of colors is relatively even across different ride counts.There are clusters of points at certain temperatures, indicating that there are more data points (and potentially more rides) available at these temperatures(i.e. between 42 and 45).There are a few outliers with a high ride count, which could indicate times of high demand or data anomalies. It would be worth investigating these points further to understand their cause.
+
+```{r}
+ggplot(combined_data, aes(x = avg_pressure, y = ride_count)) +
+  geom_point(aes(color = avg_temp), alpha = 0.6) + 
+  scale_color_gradient(low = "lightblue", high = "darkred", name = "Average Temperature (°C)") +
+  labs(
+    x = "Average Atmospheric Pressure (hPa)", 
+    y = "Ride Count (Availability)",
+    title = "Relationship Between Atmospheric Pressure and Cab Ride Availability",
+    subtitle = "Each point's color indicates the average temperature"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+There doesn't seem to be a clear or strong relationship between atmospheric pressure and the number of cab rides available. The points are fairly evenly distributed across the range of pressures without an obvious pattern indicating that atmospheric pressure alone significantly impacts cab ride availability.The color intensity indicates that higher temperatures (darker red points) do not seem to cluster at either high or low ride counts or pressures, suggesting that the average temperature also does not have a strong direct correlation with the availability of cab rides within the range of pressures shown.Similar to the previous graph, there are outliers with higher ride counts. These could indicate peak times or special events(concerts,games or holidays) that cause spikes in demand.
+
+
+```{r}
+ggplot(combined_data, aes(x = factor(avg_rain), y = avg_price)) +
+  geom_boxplot() +
+  geom_jitter(aes(color = avg_rain), width = 0.2, alpha = 0.6) +
+  scale_color_gradient(low = "green", high = "yellow", name = "Average Rain (%)") +
+  labs(x = "Average Rain Bins (%)", y = "Average Cab Ride Price ($)", title = "Distribution of Cab Ride Prices Across Rain Levels") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+The boxplots show the median, quartiles, and range (via whiskers) of cab ride prices at each level of rainfall. The points represent outliers or individual observations that fall outside the main spread of data.There's no clear upward or downward trend in ride prices as the rainfall increases. The median prices seem relatively stable across the different bins of rainfall percentages, suggesting that within this dataset, rainfall does not have a significant effect on the average price of cab rides.There are outliers present in many of the bins, indicating that there are occasional ride prices that are significantly higher or lower than the average.
+
+```{r}
+ggplot(combined_data, aes(x = avg_temp, y = avg_price)) +
+  geom_point(aes(color = avg_rain, size = avg_clouds), alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  scale_color_gradient(low = "blue", high = "red", name = "Average Rain (inches)") +
+  scale_size_continuous(name = "Average Cloud Cover (%)") +
+  labs(x = "Average Temperature (°F)", y = "Average Cab Ride Price ($)", title = "Impact of Weather Conditions on Cab Ride Price") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+In this plot, we wanted to compare all major aspects of weather conditions together to get a better sense of correlation. The slightly negative sloped tells us that with temperature increasing the cab prices are expected to decrease. We couldn't find any correlation between average cloud cover and cab prices. Cloud cover is indicated through the size of the data points. Similarly, we couldn't find any correlation between average rain and cab prices. The intensity of rain is depicted through the color gradient. The more red the data point is the heavier the rainfall. We can't find major correlation between weather and cab prices because the dataset only contains data of Boston city for one week during every hour of the day and there is not much drastic change in the weather to see significant changes in cab prices.
+
+Challenges Encountered: The biggest challenge that we faced was while merging our cab rides and weather data frames. We were unable to merge the two data frames  into one on the basis of time stamps due to the variable being in different format for each. We also had to get the weather measurements and cab rides data per hour.To solve this problem, we converted the variable to POSIXct and rounded it to the nearest hour. We then calculated the means of each variable to keep it consistent for averages for each hour.
+
+Conclusion: 
+The data analysis does not provide evidence of a strong correlation between the weather conditions of temperature, atmospheric pressure, or rainfall and the pricing or availability of cab rides in the observed dataset. The slight negative slope observed in the relationship between temperature and cab pricing is not pronounced enough to indicate a strong trend.However, given the dataset's limitations in terms of range and diversity of weather conditions, broader and longer-term data might be necessary to draw more definitive conclusions. That could our future directions to work on this project. 
+
+
+
+# Code Appendix
+```{r codeAppendix, ref.label = knitr::all_labels(), echo = TRUE, eval = FALSE}
+```

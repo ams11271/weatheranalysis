@@ -2,8 +2,6 @@
 
 A data-driven investigation into **how weather conditions affect the pricing and availability of Uber & Lyft rides** in Boston. Built with R, this project applies statistical analysis and visualization techniques to a real-world Kaggle dataset to quantify the relationship between atmospheric variables and ride economics.
 
-> **Authors:** Janvi Ahuja & Ahsan Sultan
-
 ---
 
 ## Research Question
@@ -116,4 +114,4 @@ rmarkdown::render("STAT 184_Final Project.Rmd")
 
 ## About
 
-Built as a final project for STAT 184, demonstrating proficiency in statistical computing, data wrangling with dplyr, multi-variable visualization with ggplot2, and hypothesis-driven exploratory analysis on real-world datasets.
+Demonstrates proficiency in statistical computing, data wrangling with dplyr, multi-variable visualization with ggplot2, and hypothesis-driven exploratory analysis on real-world datasets.
